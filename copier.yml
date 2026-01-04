@@ -1,0 +1,68 @@
+_min_copier_version: "9.0.0"
+
+project_name:
+  type: str
+  default: "{{ _copier_conf.dst_path.name | lower | replace('_', '-') }}"
+  help: Name of the project
+  validator: >-
+    {% if not (project_name | regex_search('^[a-z0-9]+(-[a-z0-9]+)*$')) %}
+    project_name must be kebab-case (lowercase letters, numbers, and hyphens only).
+    {% endif %}
+
+python_version:
+  type: str
+  default: "3.13"
+  help: Python version to target (MAJOR.MINOR, e.g. 3.13)
+  validator: >-
+    {% if not (python_version | regex_search('^[0-9]+\\.[0-9]+$')) %}
+    python_version must be in MAJOR.MINOR format (e.g. 3.13). Patch versions like 3.13.10 are not allowed.
+    {% endif %}
+
+has_tests:
+  type: bool
+  default: true
+  help: Generate a tests directory?
+
+use_dockerfile:
+  type: bool
+  default: true
+  help: Generate Dockerfile / Makefile?
+
+_tasks:
+  - command: >-
+      sh -c 'rm -rf tests'
+    when: "{{ not has_tests }}"
+  - command: >-
+      sh -c 'rm -f Dockerfile Dockerfile_dev Makefile'
+    when: "{{ not use_dockerfile }}"
+  - command: >-
+      sh -c '
+      set -eu
+
+      if command -v uv >/dev/null 2>&1; then
+        if [ ! -d ".venv" ]; then
+          echo "[copier] creating .venv with Python {{ python_version }} if available"
+          if env -u VIRTUAL_ENV uv venv --python "{{ python_version }}" --prompt "{{ project_name }}"; then
+            echo "[copier] initial setup: adding dev dependencies (base)"
+            env -u VIRTUAL_ENV uv add --dev ruff ty taskipy
+
+            if [ "{{ has_tests }}" = "True" ]; then
+              echo "[copier] initial setup: adding dev dependencies (tests)"
+              env -u VIRTUAL_ENV uv add --dev pytest pytest-cov
+            fi
+
+            echo "[copier] initial setup: running uv lock"
+            env -u VIRTUAL_ENV uv lock
+
+            echo "[copier] initial setup: running uv sync"
+            env -u VIRTUAL_ENV uv sync
+          else
+            echo "[copier] uv venv --python {{ python_version }} failed; skip venv/deps/lock/sync"
+          fi
+        else
+          echo "[copier] .venv already exists; skip venv/deps/lock/sync"
+        fi
+      else
+        echo "[copier] uv not found; skip venv/deps/lock/sync"
+      fi
+      '

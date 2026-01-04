@@ -1,0 +1,40 @@
+# syntax=docker/dockerfile:1.7-labs
+FROM python:{{python_version}}-slim-trixie
+
+ARG APP_UID=1000
+ARG APP_GID=1000
+ARG APP_USER=appuser
+ARG APP_GROUP=appgroup
+ARG APP_DIR=/app
+ARG VENV_PATH=/opt/venv
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    DEBIAN_FRONTEND=noninteractive \
+    TZ=Asia/Tokyo \
+    APP_UID=${APP_UID} \
+    APP_GID=${APP_GID} \
+    APP_USER=${APP_USER} \
+    APP_GROUP=${APP_GROUP} \
+    UV_PROJECT_ENVIRONMENT=${VENV_PATH} \
+    UV_LINK_MODE=copy \
+    PATH="${VENV_PATH}/bin:${PATH}"
+
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
+
+RUN --mount=type=bind,source=pyproject.toml,target=/tmp/pyproject.toml,readonly \
+    --mount=type=bind,source=uv.lock,target=/tmp/uv.lock,readonly \
+    --mount=type=cache,target=/root/.cache/uv \
+    bash -lc 'cd /tmp && uv sync --frozen'
+
+RUN groupadd -g ${APP_GID} ${APP_GROUP} && \
+    useradd -u ${APP_UID} -g ${APP_GID} -m -s /bin/bash ${APP_USER} && \
+    install -d -o ${APP_UID} -g ${APP_GID} ${APP_DIR}
+
+WORKDIR ${APP_DIR}
+
+USER ${APP_USER}
+
+CMD ["/bin/bash"]

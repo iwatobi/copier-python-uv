@@ -1,0 +1,75 @@
+[project]
+name = "{{ project_name }}"
+version = "0.1.0"
+description = ""
+readme = "README.md"
+requires-python = ">={{ python_version }}"
+dependencies = []
+
+[dependency-groups]
+dev = []
+
+[tool.ruff]
+line-length = 99
+indent-width = 4
+target-version = "py{{ python_version | replace('.', '') }}"
+exclude = ["cdk.out"]
+
+[tool.ruff.lint]
+select = [
+    "F",    # Pyflakes
+    "E",    # pycodestyle (Error)
+    "W",    # pycodestyle (Warning)
+    "I",    # isort
+    "D",    # pydocstyle
+    "ANN",  # flake8-annotations
+    "Q",    # flake8-quotes
+]
+ignore = [
+    "D203",    # one-blank-line-before-class
+    "D213",    # multi-line-summary-second-line
+    "ANN401",  # any-type
+]
+fixable = ["ALL"]
+unfixable = []
+
+[tool.ruff.lint.isort]
+combine-as-imports = true
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.ty.environment]
+python-version = "{{ python_version }}"
+
+[tool.ty.src]
+exclude = ["build", "dist", "venv", ".venv", "cdk.out"]
+
+[tool.ty.rules]
+possibly-unresolved-reference = "error"
+invalid-attribute-access = "error"
+division-by-zero = "error"
+unresolved-reference = "error"
+invalid-argument-type = "error"
+invalid-return-type = "error"
+
+{% if has_tests -%}
+[tool.pytest.ini_options]
+disable_test_id_escaping_and_forfeit_all_rights_to_community_support = true
+console_output_style = "classic"
+addopts = "-p no:cacheprovider"
+
+{% endif -%}
+[tool.taskipy.tasks]
+{%- if has_tests %}
+fmt = "ruff check --no-cache --fix src tests; ruff format --no-cache src tests"
+lint = "ruff check --no-cache src tests && ty check src tests"
+test = "pytest --cov=src --cov-report=term-missing tests"
+{%- else %}
+fmt = "ruff check --no-cache --fix src; ruff format --no-cache src"
+lint = "ruff check --no-cache src && ty check src"
+{%- endif %}

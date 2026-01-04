@@ -1,0 +1,43 @@
+.PHONY: build build_dev bash jupyter
+
+# Dockerイメージのリポジトリ名とタグ
+DOCKERFILE ?= Dockerfile
+DOCKERFILE_DEV ?= Dockerfile_dev
+IMAGE_REPO ?= {{ project_name }}
+IMAGE_TAG ?= latest
+IMAGE_TAG_DEV ?= dev
+LOCAL_IMAGE_REF := $(IMAGE_REPO):$(IMAGE_TAG)
+LOCAL_IMAGE_REF_DEV := $(IMAGE_REPO):$(IMAGE_TAG_DEV)
+
+# デフォルトのビルドターゲットプラットフォーム
+DOCKER_PLATFORM ?= linux/arm64
+
+build:
+	docker build \
+		--platform $(DOCKER_PLATFORM) \
+		-f $(DOCKERFILE) \
+		-t $(LOCAL_IMAGE_REF) .
+
+
+##########
+# 開発用 #
+##########
+build_dev:
+	docker build \
+		--platform $(DOCKER_PLATFORM) \
+		-f $(DOCKERFILE_DEV) \
+		-t $(LOCAL_IMAGE_REF_DEV) .
+
+bash: build_dev
+	docker run -it --rm \
+		-v $(PWD):/app \
+		$(LOCAL_IMAGE_REF_DEV) \
+		/bin/bash
+
+jupyter: build_dev
+	docker run -it --rm \
+		-v $(PWD):/app \
+		-p 8888:8888 \
+		$(LOCAL_IMAGE_REF_DEV) \
+		jupyter lab --no-browser --ServerApp.token='' --ServerApp.password='' \
+			--notebook-dir=/app/notebooks --ip=0.0.0.0
